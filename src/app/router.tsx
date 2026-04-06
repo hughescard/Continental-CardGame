@@ -1,5 +1,6 @@
 import { Suspense, lazy } from 'react';
 import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom';
+import { Analytics } from '@vercel/analytics/react';
 import { AppProviders } from '@/app/providers/AppProviders';
 import { AppLayout } from '@/shared/ui/layout/AppLayout';
 import { BackgroundMusicManager } from '@/shared/audio/BackgroundMusicManager';
@@ -48,6 +49,7 @@ function RootLayout() {
       <AppLayout>
         <Outlet />
       </AppLayout>
+      <Analytics />
     </AppProviders>
   );
 }
