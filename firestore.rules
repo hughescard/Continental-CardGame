@@ -1,0 +1,241 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function roomPath(roomId) {
+      return /databases/$(database)/documents/rooms/$(roomId);
+    }
+
+    function playerPath(roomId, playerId) {
+      return /databases/$(database)/documents/rooms/$(roomId)/players/$(playerId);
+    }
+
+    function roomExists(roomId) {
+      return exists(roomPath(roomId));
+    }
+
+    function roomExistsAfter(roomId) {
+      return existsAfter(roomPath(roomId));
+    }
+
+    function roomData(roomId) {
+      return get(roomPath(roomId)).data;
+    }
+
+    function roomDataAfter(roomId) {
+      return getAfter(roomPath(roomId)).data;
+    }
+
+    function currentPlayerData(roomId) {
+      return get(playerPath(roomId, request.auth.uid)).data;
+    }
+
+    function gameStatePath(roomId) {
+      return /databases/$(database)/documents/rooms/$(roomId)/gameState/current;
+    }
+
+    function roundIsClosed(roomId) {
+      return exists(gameStatePath(roomId))
+        && get(gameStatePath(roomId)).data.phase in ['scoring', 'finished'];
+    }
+
+    function isConnectedMember(roomId) {
+      return isSignedIn()
+        && exists(playerPath(roomId, request.auth.uid))
+        && currentPlayerData(roomId).status == 'connected';
+    }
+
+    function isHost(roomId) {
+      return isConnectedMember(roomId)
+        && roomData(roomId).hostPlayerId == request.auth.uid;
+    }
+
+    function becomesConnectedMember(roomId) {
+      return isSignedIn()
+        && existsAfter(playerPath(roomId, request.auth.uid))
+        && getAfter(playerPath(roomId, request.auth.uid)).data.status == 'connected';
+    }
+
+    match /roomCodes/{roomCode} {
+      allow get: if isSignedIn();
+      allow list: if false;
+
+      allow create: if isSignedIn()
+        && request.resource.id == request.resource.data.codeNormalized
+        && request.resource.data.roomId is string
+        && request.resource.data.code is string
+        && request.resource.data.status == 'lobby'
+        && request.resource.data.currentPlayerCount == 1
+        && request.resource.data.minPlayers == 2
+        && request.resource.data.maxPlayers == 7
+        && roomExistsAfter(request.resource.data.roomId);
+
+      allow update: if isSignedIn()
+        && request.resource.data.roomId == resource.data.roomId
+        && request.resource.data.code == resource.data.code
+        && request.resource.data.codeNormalized == resource.data.codeNormalized
+        && request.resource.data.minPlayers == resource.data.minPlayers
+        && request.resource.data.maxPlayers == resource.data.maxPlayers
+        && request.resource.data.currentPlayerCount >= 0
+        && request.resource.data.currentPlayerCount <= request.resource.data.maxPlayers
+        && request.resource.data.status in ['lobby', 'in_game', 'finished']
+        && (
+          existsAfter(playerPath(resource.data.roomId, request.auth.uid))
+          || isHost(resource.data.roomId)
+        );
+
+      allow delete: if false;
+    }
+
+    match /rooms/{roomId} {
+      allow get: if isConnectedMember(roomId);
+      allow list: if false;
+
+      allow create: if isSignedIn()
+        && request.resource.data.hostPlayerId == request.auth.uid
+        && request.resource.data.status == 'lobby'
+        && request.resource.data.activeGameId == null
+        && request.resource.data.minPlayers == 2
+        && request.resource.data.maxPlayers == 7;
+
+      allow update: if isConnectedMember(roomId)
+        && request.resource.data.code == resource.data.code
+        && request.resource.data.codeNormalized == resource.data.codeNormalized
+        && request.resource.data.minPlayers == resource.data.minPlayers
+        && request.resource.data.maxPlayers == resource.data.maxPlayers
+        && (
+          request.resource.data.diff(resource.data).changedKeys().hasOnly(['updatedAt'])
+          || (
+            isHost(roomId)
+            && request.resource.data
+              .diff(resource.data)
+              .changedKeys()
+              .hasOnly(['hostPlayerId', 'status', 'activeGameId', 'startedAt', 'updatedAt'])
+          )
+        )
+        || (
+          becomesConnectedMember(roomId)
+          && request.resource.data.code == resource.data.code
+          && request.resource.data.codeNormalized == resource.data.codeNormalized
+          && request.resource.data.hostPlayerId == resource.data.hostPlayerId
+          && request.resource.data.status == resource.data.status
+          && request.resource.data.activeGameId == resource.data.activeGameId
+          && request.resource.data.minPlayers == resource.data.minPlayers
+          && request.resource.data.maxPlayers == resource.data.maxPlayers
+          && request.resource.data.startedAt == resource.data.startedAt
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly(['updatedAt'])
+        );
+
+      allow delete: if false;
+
+      match /players/{playerId} {
+        allow get: if isConnectedMember(roomId)
+          || (isSignedIn() && request.auth.uid == playerId);
+        allow list: if isConnectedMember(roomId);
+
+        allow create: if isSignedIn()
+          && request.auth.uid == playerId
+          && (roomExists(roomId) || roomExistsAfter(roomId))
+          && (
+            (roomExists(roomId) && roomData(roomId).status == 'lobby')
+            || (roomExistsAfter(roomId) && roomDataAfter(roomId).status == 'lobby')
+          )
+          && request.resource.data.playerId == playerId
+          && request.resource.data.displayName is string
+          && request.resource.data.seatIndex is int
+          && request.resource.data.seatIndex >= 0
+          && request.resource.data.seatIndex < 7
+          && request.resource.data.status == 'connected';
+
+        allow update: if isSignedIn()
+          && request.auth.uid == playerId
+          && request.resource.data.playerId == resource.data.playerId
+          && request.resource.data.seatIndex == resource.data.seatIndex
+          && request.resource.data.joinedAt == resource.data.joinedAt
+          && request.resource.data.displayName is string
+          && request.resource.data.status in ['connected', 'left']
+          && request.resource.data
+            .diff(resource.data)
+            .changedKeys()
+            .hasOnly(['displayName', 'status', 'updatedAt', 'lastActiveAt', 'leftAt']);
+
+        allow delete: if false;
+      }
+
+      match /privatePlayers/{playerId} {
+        allow get: if isSignedIn()
+          && (
+            request.auth.uid == playerId
+            || (isConnectedMember(roomId) && roundIsClosed(roomId))
+          );
+        allow list: if false;
+
+        allow create: if isSignedIn()
+          && (request.auth.uid == playerId || isHost(roomId))
+          && request.resource.data.playerId == playerId
+          && request.resource.data.roomId == roomId;
+
+        allow update: if isSignedIn()
+          && (request.auth.uid == playerId || isHost(roomId))
+          && request.resource.data.playerId == resource.data.playerId
+          && request.resource.data.roomId == resource.data.roomId;
+
+        allow delete: if false;
+      }
+
+      match /gameState/{docId} {
+        allow get: if isConnectedMember(roomId);
+        allow list: if false;
+
+        allow create: if isHost(roomId)
+          && docId == 'current'
+          && request.resource.data.roomId == roomId
+          && request.resource.data.phase in ['playing', 'scoring', 'finished'];
+
+        allow update: if isConnectedMember(roomId)
+          && docId == 'current'
+          && request.resource.data.roomId == resource.data.roomId;
+        allow delete: if false;
+      }
+
+      match /engine/{docId} {
+        allow get: if isConnectedMember(roomId);
+        allow list: if false;
+
+        allow create: if isHost(roomId)
+          && docId == 'current'
+          && request.resource.data.roomId == roomId;
+
+        allow update: if isConnectedMember(roomId)
+          && docId == 'current'
+          && request.resource.data.roomId == resource.data.roomId;
+
+        allow delete: if false;
+      }
+
+      match /roundResults/{docId} {
+        allow get: if isConnectedMember(roomId);
+        allow list: if false;
+
+        allow create: if isConnectedMember(roomId)
+          && request.resource.data.roomId == roomId;
+
+        allow update, delete: if false;
+      }
+
+      match /gameResults/{docId} {
+        allow get: if isConnectedMember(roomId);
+        allow list: if false;
+
+        allow create: if isConnectedMember(roomId)
+          && request.resource.data.roomId == roomId;
+
+        allow update, delete: if false;
+      }
+    }
+  }
+}
