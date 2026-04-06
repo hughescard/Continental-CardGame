@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.node.json"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "firebase": "^12.11.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
