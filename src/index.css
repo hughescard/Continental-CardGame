@@ -1,0 +1,105 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --color-surface: 8 15 24;
+  --color-surface-alt: 14 23 36;
+  --color-line: 44 60 82;
+  --color-ink: 237 242 247;
+  --color-muted: 152 169 190;
+  --color-brand: 25 183 164;
+  --color-brand-strong: 14 138 124;
+  --color-gold: 213 169 92;
+  --color-shadow: 3 8 15;
+  --page-gradient:
+    radial-gradient(circle at top, rgba(25, 183, 164, 0.2), transparent 22%),
+    radial-gradient(circle at 85% 18%, rgba(213, 169, 92, 0.14), transparent 20%),
+    linear-gradient(180deg, #09111b 0%, #0b1420 42%, #071018 100%);
+  --felt-texture:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.02), transparent 35%),
+    linear-gradient(225deg, rgba(255, 255, 255, 0.015), transparent 40%);
+}
+
+html {
+  font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  background-color: rgb(var(--color-surface));
+  color: rgb(var(--color-ink));
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background-image: var(--page-gradient);
+  background-attachment: fixed;
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100vh;
+  overflow-x: clip;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+textarea {
+  font: inherit;
+}
+
+::selection {
+  background: rgba(15, 118, 110, 0.16);
+}
+
+@layer base {
+  body {
+    @apply text-ink antialiased;
+  }
+
+  button {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+@layer components {
+  .game-panel {
+    background:
+      var(--felt-texture),
+      linear-gradient(180deg, rgba(17, 28, 43, 0.96) 0%, rgba(10, 18, 30, 0.96) 100%);
+    box-shadow:
+      0 28px 80px -44px rgba(var(--color-shadow), 0.88),
+      inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  }
+
+  .game-chip {
+    @apply rounded-full border border-line/70 bg-white/5 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted;
+  }
+
+  .game-card-glow {
+    box-shadow:
+      0 12px 28px -18px rgba(0, 0, 0, 0.72),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .game-hero {
+    background:
+      radial-gradient(circle at 15% 20%, rgba(25, 183, 164, 0.16), transparent 25%),
+      radial-gradient(circle at 88% 12%, rgba(213, 169, 92, 0.12), transparent 24%),
+      linear-gradient(180deg, rgba(16, 25, 38, 0.96) 0%, rgba(10, 18, 30, 0.96) 100%);
+  }
+}
