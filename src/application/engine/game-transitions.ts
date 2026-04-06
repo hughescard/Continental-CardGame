@@ -749,7 +749,17 @@ export function discardCardTransition(
   syncLoadedClaimEligibility(nextSnapshot);
   refreshCounts(nextSnapshot);
 
-  return finishRoundTransitionMutable(nextSnapshot, playerId);
+  const afterFinishCheck = finishRoundTransitionMutable(nextSnapshot, playerId);
+
+  if (
+    afterFinishCheck.publicState.phase === 'playing' &&
+    afterFinishCheck.engineState.lastDrawSource === 'discard' &&
+    !afterFinishCheck.engineState.pendingOutOfTurnClaim
+  ) {
+    return advanceToNextTurnMutable(afterFinishCheck);
+  }
+
+  return afterFinishCheck;
 }
 
 export function claimOutOfTurnDiscardTransition(
