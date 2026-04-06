@@ -29,7 +29,7 @@ export interface DraftMeld {
   cardIds: string[];
 }
 
-export type DraftMeldKind = 'trio' | 'straight' | 'both' | 'invalid';
+export type DraftMeldKind = 'trio' | 'straight' | 'invalid';
 
 export type HandSortMode = 'rank' | 'suit';
 
@@ -374,22 +374,19 @@ function inferInitialDownMelds(input: {
 }
 
 function inferDraftKind(cards: readonly CardInstance[]): DraftMeldKind {
-  const isTrio = validateTrio(cards).isValid;
-  const isStraight = validateStraight(cards).isValid;
-
-  if (isTrio && isStraight) {
-    return 'both';
+  if (cards.length <= 1) {
+    return 'invalid';
   }
 
-  if (isTrio) {
-    return 'trio';
+  const rankCounts = new Map<string, number>();
+
+  for (const card of cards) {
+    rankCounts.set(card.rank, (rankCounts.get(card.rank) ?? 0) + 1);
   }
 
-  if (isStraight) {
-    return 'straight';
-  }
+  const hasRepeatedRank = [...rankCounts.values()].some((count) => count >= 2);
 
-  return 'invalid';
+  return hasRepeatedRank ? 'trio' : 'straight';
 }
 
 export function useRealtimeGame(roomId: string) {
