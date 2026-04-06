@@ -70,6 +70,13 @@ export interface TableParticipant {
   isSelf: boolean;
 }
 
+export interface ScoreboardEntry {
+  playerId: string;
+  displayName: string;
+  totalPoints: number;
+  rank: number;
+}
+
 function buildActionDescriptors(input: {
   isRoundOpen: boolean;
   isCurrentPlayerTurn: boolean;
@@ -392,6 +399,8 @@ export function useRealtimeGame(roomId: string) {
   const [room, setRoom] = useState<LobbyRoom | null>(null);
   const [players, setPlayers] = useState<LobbyPlayer[]>([]);
   const [roundResult, setRoundResult] = useState<RoundResultSummary | null>(null);
+  const [latestCompletedRoundResult, setLatestCompletedRoundResult] =
+    useState<RoundResultSummary | null>(null);
   const [gameSummary, setGameSummary] = useState<GameSummary | null>(null);
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
   const [selectedTableMeldId, setSelectedTableMeldId] = useState<string | null>(null);
@@ -493,6 +502,34 @@ export function useRealtimeGame(roomId: string) {
       unsubscribe();
     };
   }, [publicState?.roundIndex, roomId]);
+
+  useEffect(() => {
+    if (!publicState) {
+      setLatestCompletedRoundResult(null);
+      return;
+    }
+
+    const targetRoundIndex =
+      publicState.phase === 'playing'
+        ? publicState.roundIndex - 1
+        : publicState.roundIndex;
+
+    if (targetRoundIndex < 1) {
+      setLatestCompletedRoundResult(null);
+      return;
+    }
+
+    const unsubscribe = appServices.subscribeToRoundResult(
+      roomId,
+      targetRoundIndex,
+      setLatestCompletedRoundResult,
+      (nextError) => setError(getErrorMessage(nextError)),
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [publicState?.phase, publicState?.roundIndex, roomId]);
 
   useEffect(() => {
     if (!publicState?.gameId) {
@@ -730,6 +767,42 @@ export function useRealtimeGame(roomId: string) {
     });
   }, [currentOutOfTurnPriorityPlayerId, players, publicState, session.userId]);
 
+  const scoreboardEntries = useMemo<ScoreboardEntry[]>(() => {
+    if (gameSummary) {
+      return gameSummary.standings.map((standing) => ({
+        playerId: standing.playerId,
+        displayName: standing.displayName,
+        totalPoints: standing.totalPoints,
+        rank: standing.rank,
+      }));
+    }
+
+    const sourceEntries =
+      roundResult?.entries ??
+      latestCompletedRoundResult?.entries ??
+      publicState?.orderedPlayerIds.map((playerId) => ({
+        playerId,
+        displayName: getPlayerName(playerId, players, session.userId),
+        totalPointsAfterRound: 0,
+      }));
+
+    if (!sourceEntries) {
+      return [];
+    }
+
+    return [...sourceEntries]
+      .map((entry) => ({
+        playerId: entry.playerId,
+        displayName: entry.displayName,
+        totalPoints: entry.totalPointsAfterRound,
+      }))
+      .sort((left, right) => left.totalPoints - right.totalPoints)
+      .map((entry, index) => ({
+        ...entry,
+        rank: index + 1,
+      }));
+  }, [gameSummary, latestCompletedRoundResult?.entries, players, publicState?.orderedPlayerIds, roundResult?.entries, session.userId]);
+
   const currentTurnPlayerName = publicState
     ? getPlayerName(publicState.currentTurnPlayerId, players, session.userId)
     : '...';
@@ -862,6 +935,7 @@ export function useRealtimeGame(roomId: string) {
     room,
     players,
     tableParticipants,
+    scoreboardEntries,
     playerNameMap,
     publicState,
     privateState,

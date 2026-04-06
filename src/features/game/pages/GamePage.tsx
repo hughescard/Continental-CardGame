@@ -251,6 +251,38 @@ export function GamePage() {
         </div>
       </section>
 
+      {game.scoreboardEntries.length ? (
+        <section className="game-panel overflow-hidden rounded-[1.35rem] border border-line/70 px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-gold/80">
+              Puntuaciones
+            </p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted">
+              Menor puntaje gana
+            </p>
+          </div>
+
+          <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+            {game.scoreboardEntries.map((entry) => (
+              <article
+                key={entry.playerId}
+                className="min-w-[9.5rem] shrink-0 rounded-[1.05rem] border border-line/70 bg-white/[0.05] px-3 py-2.5"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-ink">{entry.displayName}</p>
+                    <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-muted">
+                      Puesto #{entry.rank}
+                    </p>
+                  </div>
+                  <p className="text-lg font-bold text-ink">{entry.totalPoints}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       <GameNotice title={game.statusNotice.title} tone={game.statusNotice.tone}>
         {game.statusNotice.description}
       </GameNotice>
