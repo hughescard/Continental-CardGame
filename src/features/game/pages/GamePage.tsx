@@ -96,12 +96,19 @@ export function GamePage() {
     () =>
       game.initialDownDraft.map((meld, index) => ({
         id: meld.id,
-        label: `Borrador ${index + 1}`,
+        label:
+          game.draftKindById[meld.id] === 'trio'
+            ? 'Borrador de trío'
+            : game.draftKindById[meld.id] === 'straight'
+              ? 'Borrador de escalera'
+              : game.draftKindById[meld.id] === 'both'
+                ? 'Borrador válido'
+                : `Borrador ${index + 1}`,
         cards: meld.cardIds
           .map((cardId) => handCardMap.get(cardId))
           .filter((card): card is CardInstance => card !== undefined),
       })),
-    [game.initialDownDraft, handCardMap],
+    [game.draftKindById, game.initialDownDraft, handCardMap],
   );
 
   const selfParticipant = game.tableParticipants.find((participant) => participant.isSelf) ?? null;

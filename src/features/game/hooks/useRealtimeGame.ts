@@ -29,6 +29,8 @@ export interface DraftMeld {
   cardIds: string[];
 }
 
+export type DraftMeldKind = 'trio' | 'straight' | 'both' | 'invalid';
+
 export type HandSortMode = 'rank' | 'suit';
 
 export type GameActionKey =
@@ -364,6 +366,25 @@ function inferInitialDownMelds(input: {
   throw new Error('Los borradores no cumplen exactamente el requisito de esta ronda.');
 }
 
+function inferDraftKind(cards: readonly CardInstance[]): DraftMeldKind {
+  const isTrio = validateTrio(cards).isValid;
+  const isStraight = validateStraight(cards).isValid;
+
+  if (isTrio && isStraight) {
+    return 'both';
+  }
+
+  if (isTrio) {
+    return 'trio';
+  }
+
+  if (isStraight) {
+    return 'straight';
+  }
+
+  return 'invalid';
+}
+
 export function useRealtimeGame(roomId: string) {
   const { session, ensureAnonymousSession, isLoading: isAuthLoading } = useAuthSession();
   const [publicState, setPublicState] = useState<PublicGameState | null>(null);
@@ -660,6 +681,28 @@ export function useRealtimeGame(roomId: string) {
       : sortCardsByRank(privateState.hand);
   }, [handSortMode, privateState?.hand]);
 
+  const handById = useMemo(
+    () =>
+      new Map(
+        (privateState?.hand ?? []).map((card) => [card.id, card] as const),
+      ),
+    [privateState?.hand],
+  );
+
+  const draftKindById = useMemo(
+    () =>
+      Object.fromEntries(
+        initialDownDraft.map((draft) => {
+          const cards = draft.cardIds
+            .map((cardId) => handById.get(cardId))
+            .filter((card): card is CardInstance => card !== undefined);
+
+          return [draft.id, inferDraftKind(cards)] as const;
+        }),
+      ) as Record<string, DraftMeldKind>,
+    [handById, initialDownDraft],
+  );
+
   const playerNameMap = useMemo(
     () => Object.fromEntries(players.map((player) => [player.id, player.displayName])),
     [players],
@@ -834,6 +877,7 @@ export function useRealtimeGame(roomId: string) {
     sortedHand,
     handSortMode,
     lastDrawnCardId,
+    draftKindById,
     selectedCardIds,
     selectedTableMeldId,
     initialDownDraft,
