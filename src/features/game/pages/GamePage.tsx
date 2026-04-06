@@ -441,7 +441,7 @@ export function GamePage() {
           <div className="rounded-[1.8rem] border border-brand/15 bg-black/14 p-3 sm:p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-gold/80">
+                <p className="text-sm font-bold uppercase tracking-[0.24em] text-gold/80 sm:text-[1rem]">
                   Mesa
                 </p>
               </div>

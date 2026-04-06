@@ -131,7 +131,8 @@ describe('claimOutOfTurnDiscard', () => {
     expect(afterClaim.publicState.discardTop?.id).toBe(cardToDiscard.id);
     expect(afterClaim.publicState.discardCount).toBe(1);
     expect(afterClaim.publicState.pendingOutOfTurnClaim).toBeNull();
-    expect(afterClaim.publicState.turnPhase).toBe('completed');
+    expect(afterClaim.publicState.currentTurnPlayerId).toBe(player2);
+    expect(afterClaim.publicState.turnPhase).toBe('awaiting-draw');
   });
 });
 
@@ -151,7 +152,7 @@ describe('claim window lifecycle', () => {
     );
   });
 
-  it('requires each eligible player to reject in priority order before advancing the turn', () => {
+  it('requires each eligible player to reject in priority order and then advances automatically', () => {
     const afterDraw = drawFromDeckTransition(createRoundOneSnapshot([player1, player2, player3]), player1);
     const cardToDiscard = afterDraw.privateStates[player1]?.hand[0];
 
@@ -171,14 +172,12 @@ describe('claim window lifecycle', () => {
     );
 
     const afterSecondReject = rejectOutOfTurnDiscardTransition(afterFirstReject, player3);
-    const afterAdvance = advanceTurnTransition(afterSecondReject, player1);
 
     expect(afterSecondReject.publicState.pendingOutOfTurnClaim).toBeNull();
-    expect(afterSecondReject.publicState.turnPhase).toBe('completed');
+    expect(afterSecondReject.publicState.turnPhase).toBe('awaiting-draw');
     expect(afterSecondReject.publicState.discardCount).toBe(2);
     expect(afterSecondReject.publicState.discardTop?.id).toBe(cardToDiscard.id);
-    expect(afterAdvance.publicState.currentTurnPlayerId).toBe(player2);
-    expect(afterAdvance.publicState.turnPhase).toBe('awaiting-draw');
+    expect(afterSecondReject.publicState.currentTurnPlayerId).toBe(player2);
   });
 });
 

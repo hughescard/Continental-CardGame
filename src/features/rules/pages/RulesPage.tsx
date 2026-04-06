@@ -18,6 +18,15 @@ const tableRules = [
   'Solo después de bajarte puedes agregar cartas a combinaciones bajadas o reorganizar la mesa.',
 ];
 
+const appUsageRules = [
+  'Tu mano está abajo de la pantalla. Toca cartas para seleccionarlas o volver a tocarlas para quitarlas.',
+  'Puedes armar borradores aunque no sea tu turno, para dejar preparada tu bajada antes de jugar.',
+  'Cuando pulses Bajarse, la app decide automáticamente si cada borrador forma un trío o una escalera y valida si cumple la ronda.',
+  'Si robas una carta, la mano la resalta con borde rojo para que sepas cuál fue la nueva.',
+  'La barra de acciones y tu mano se pueden plegar para ver mejor la mesa durante la partida.',
+  'Desde el menú de la partida puedes abrir Reglas, controlar la música o volver a Inicio.',
+];
+
 const claimRules = [
   'El reclamo fuera de turno solo existe cuando el jugador activo robó del mazo boca abajo.',
   'Se disputa la carta que ya estaba arriba del descarte antes del descarte nuevo.',
@@ -77,6 +86,22 @@ export function RulesPage() {
         </div>
 
         <div className="mt-4 grid min-w-0 gap-4 lg:grid-cols-2">
+          <section className="min-w-0 rounded-[1.75rem] border border-line/70 bg-white/[0.04] p-5 shadow-glow">
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-gold/80">
+              Cómo jugar en la app
+            </p>
+            <div className="mt-4 grid gap-3">
+              {appUsageRules.map((rule) => (
+                <article
+                  key={rule}
+                  className="rounded-[1.2rem] border border-line/70 bg-surface px-4 py-3.5"
+                >
+                  <p className="text-sm leading-6 text-muted">{rule}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+
           <section className="min-w-0 rounded-[1.75rem] border border-line/70 bg-white/[0.04] p-5 shadow-glow">
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-gold/80">
               Reclamo fuera de turno
