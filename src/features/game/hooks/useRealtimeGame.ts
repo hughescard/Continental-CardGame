@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { appServices } from '@/application/services/app-services';
 import type {
   GameSummary,
@@ -8,7 +8,14 @@ import type {
 } from '@/application/models/game';
 import type { LobbyPlayer, LobbyRoom } from '@/application/models/lobby';
 import { canStartNextRound } from '@/application/engine/game-progression';
-import { sortCardsByRank, sortCardsBySuit } from '@/domain';
+import {
+  sortCardsByRank,
+  sortCardsBySuit,
+  validateRoundMeldSet,
+  validateStraight,
+  validateTrio,
+} from '@/domain';
+import type { CardInstance } from '@/domain/types/cards';
 import { asPlayerId } from '@/domain/types/players';
 import { useAuthSession } from '@/shared/hooks/useAuthSession';
 import { getPlayerName, describeRoundRequirement } from '@/features/game/lib/formatters';
@@ -19,7 +26,6 @@ function getErrorMessage(error: unknown) {
 
 export interface DraftMeld {
   id: string;
-  type: 'trio' | 'straight';
   cardIds: string[];
 }
 
@@ -29,8 +35,7 @@ export type GameActionKey =
   | 'draw-deck'
   | 'draw-discard'
   | 'discard'
-  | 'draft-trio'
-  | 'draft-straight'
+  | 'draft-meld'
   | 'initial-down'
   | 'add-to-meld'
   | 'claim-out-of-turn'
@@ -118,18 +123,10 @@ function buildActionDescriptors(input: {
           : 'Solo puedes descartar una carta a la vez.',
     },
     {
-      key: 'draft-trio',
-      label: 'Borrador: trío',
-      description: 'Agrega las cartas seleccionadas al borrador como combinación de trío.',
-      visible: meldStateVisible && !input.hasGoneDown,
-      enabled: input.selectionCount > 0,
-      disabledReason: 'Selecciona una o más cartas para formar el borrador.',
-    },
-    {
-      key: 'draft-straight',
-      label: 'Borrador: escalera',
-      description: 'Agrega las cartas seleccionadas al borrador como combinación de escalera.',
-      visible: meldStateVisible && !input.hasGoneDown,
+      key: 'draft-meld',
+      label: 'Crear borrador',
+      description: 'Agrega las cartas seleccionadas a un borrador general.',
+      visible: input.isRoundOpen && !input.hasGoneDown,
       enabled: input.selectionCount > 0,
       disabledReason: 'Selecciona una o más cartas para formar el borrador.',
     },
@@ -284,6 +281,89 @@ function buildStatusNotice(input: {
   } satisfies GameStatusNotice;
 }
 
+function inferInitialDownMelds(input: {
+  drafts: readonly DraftMeld[];
+  handById: ReadonlyMap<string, CardInstance>;
+  roundIndex: PublicGameState['roundIndex'];
+}) {
+  const candidateMelds = input.drafts.map((draft, index) => {
+    const cards = draft.cardIds
+      .map((cardId) => input.handById.get(cardId))
+      .filter((card): card is CardInstance => card !== undefined);
+
+    if (cards.length !== draft.cardIds.length) {
+      throw new Error(`El borrador ${index + 1} perdió una o más cartas al sincronizarse.`);
+    }
+
+    const candidateTypes: Array<'trio' | 'straight'> = [];
+
+    if (validateTrio(cards).isValid) {
+      candidateTypes.push('trio');
+    }
+
+    if (validateStraight(cards).isValid) {
+      candidateTypes.push('straight');
+    }
+
+    if (candidateTypes.length === 0) {
+      throw new Error(`El borrador ${index + 1} no forma una combinación válida.`);
+    }
+
+    return {
+      id: draft.id,
+      cardIds: draft.cardIds,
+      candidateTypes,
+    };
+  });
+
+  const resolvedMelds: Array<{ id: string; type: 'trio' | 'straight'; cardIds: readonly string[] }> = [];
+
+  function backtrack(index: number): boolean {
+    if (index >= candidateMelds.length) {
+      const validation = validateRoundMeldSet(
+        resolvedMelds.map((meld) => ({
+          id: meld.id,
+          type: meld.type,
+          cards: meld.cardIds
+            .map((cardId) => input.handById.get(cardId))
+            .filter((card): card is CardInstance => card !== undefined),
+        })),
+        input.roundIndex,
+      );
+
+      return validation.isValid;
+    }
+
+    const candidate = candidateMelds[index];
+
+    if (!candidate) {
+      return false;
+    }
+
+    for (const type of candidate.candidateTypes) {
+      resolvedMelds.push({
+        id: candidate.id,
+        type,
+        cardIds: candidate.cardIds,
+      });
+
+      if (backtrack(index + 1)) {
+        return true;
+      }
+
+      resolvedMelds.pop();
+    }
+
+    return false;
+  }
+
+  if (backtrack(0)) {
+    return [...resolvedMelds];
+  }
+
+  throw new Error('Los borradores no cumplen exactamente el requisito de esta ronda.');
+}
+
 export function useRealtimeGame(roomId: string) {
   const { session, ensureAnonymousSession, isLoading: isAuthLoading } = useAuthSession();
   const [publicState, setPublicState] = useState<PublicGameState | null>(null);
@@ -297,9 +377,12 @@ export function useRealtimeGame(roomId: string) {
   const [initialDownDraft, setInitialDownDraft] = useState<DraftMeld[]>([]);
   const [rearrangeInput, setRearrangeInput] = useState('');
   const [handSortMode, setHandSortMode] = useState<HandSortMode>('rank');
+  const [lastDrawnCardId, setLastDrawnCardId] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [isStartingNextRound, setIsStartingNextRound] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const previousRoundKeyRef = useRef<string | null>(null);
+  const previousHandIdsRef = useRef<string[]>([]);
 
   useEffect(() => {
     if (isAuthLoading || session.userId) {
@@ -417,6 +500,51 @@ export function useRealtimeGame(roomId: string) {
       setIsStartingNextRound(false);
     }
   }, [publicState]);
+
+  useEffect(() => {
+    if (!publicState?.gameId) {
+      return;
+    }
+
+    const roundKey = `${publicState.gameId}:${publicState.roundIndex}`;
+
+    if (previousRoundKeyRef.current === null) {
+      previousRoundKeyRef.current = roundKey;
+      return;
+    }
+
+    if (previousRoundKeyRef.current !== roundKey) {
+      previousRoundKeyRef.current = roundKey;
+      setSelectedCardIds([]);
+      setSelectedTableMeldId(null);
+      setInitialDownDraft([]);
+      setRearrangeInput('');
+      setLastDrawnCardId(null);
+      previousHandIdsRef.current = [];
+    }
+  }, [publicState?.gameId, publicState?.roundIndex]);
+
+  useEffect(() => {
+    const currentHandIds = privateState?.hand.map((card) => card.id) ?? [];
+    const previousHandIds = previousHandIdsRef.current;
+
+    if (previousHandIds.length === 0) {
+      previousHandIdsRef.current = currentHandIds;
+      return;
+    }
+
+    if (currentHandIds.length > previousHandIds.length) {
+      const addedCardId = currentHandIds.find((cardId) => !previousHandIds.includes(cardId)) ?? null;
+      setLastDrawnCardId(addedCardId);
+    } else if (
+      lastDrawnCardId !== null &&
+      !currentHandIds.includes(lastDrawnCardId)
+    ) {
+      setLastDrawnCardId(null);
+    }
+
+    previousHandIdsRef.current = currentHandIds;
+  }, [lastDrawnCardId, privateState?.hand]);
 
   const currentOutOfTurnPriorityPlayerId =
     publicState?.pendingOutOfTurnClaim?.eligiblePlayerIds.find(
@@ -628,7 +756,7 @@ export function useRealtimeGame(roomId: string) {
     );
   }
 
-  function addDraftMeld(type: DraftMeld['type']) {
+  function addDraftMeld() {
     if (selectedCardIds.length === 0) {
       return;
     }
@@ -637,7 +765,6 @@ export function useRealtimeGame(roomId: string) {
       ...current,
       {
         id: `draft-${current.length + 1}`,
-        type,
         cardIds: selectedCardIds,
       },
     ]);
@@ -706,6 +833,7 @@ export function useRealtimeGame(roomId: string) {
     roundRequirementText,
     sortedHand,
     handSortMode,
+    lastDrawnCardId,
     selectedCardIds,
     selectedTableMeldId,
     initialDownDraft,
@@ -756,7 +884,18 @@ export function useRealtimeGame(roomId: string) {
       }),
     submitInitialDown: () =>
       runAction(async () => {
-        await appServices.attemptInitialMeldDown(roomId, { melds: initialDownDraft });
+        if (!publicState) {
+          return;
+        }
+
+        const handById = new Map((privateState?.hand ?? []).map((card) => [card.id, card] as const));
+        const melds = inferInitialDownMelds({
+          drafts: initialDownDraft,
+          handById,
+          roundIndex: publicState.roundIndex,
+        });
+
+        await appServices.attemptInitialMeldDown(roomId, { melds });
         setInitialDownDraft([]);
         setSelectedCardIds([]);
       }),
