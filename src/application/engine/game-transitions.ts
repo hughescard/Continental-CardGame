@@ -274,6 +274,30 @@ function commitPendingTurnDiscard(snapshot: GameRoundSnapshot) {
   snapshot.engineState.pendingTurnDiscard = null;
 }
 
+function advanceToNextTurnMutable(snapshot: GameRoundSnapshot) {
+  if (snapshot.publicState.winnerOfRound) {
+    return snapshot;
+  }
+
+  const nextPlayerId = getNextPlayerId(
+    snapshot.publicState.orderedPlayerIds,
+    snapshot.publicState.currentTurnPlayerId,
+  );
+
+  snapshot.publicState.currentTurnPlayerId = nextPlayerId;
+  snapshot.publicState.turnPhase = 'awaiting-draw';
+  snapshot.publicState.turnNumber += 1;
+  snapshot.engineState.turnNumber = snapshot.publicState.turnNumber;
+  snapshot.engineState.lastDrawSource = null;
+  snapshot.engineState.pendingOutOfTurnClaim = null;
+  snapshot.engineState.pendingTurnDiscard = null;
+  snapshot.engineState.currentTurnWentDownPlayerId = null;
+  syncLoadedClaimEligibility(snapshot);
+  refreshCounts(snapshot);
+
+  return snapshot;
+}
+
 function assertCanDraw(snapshot: GameRoundSnapshot, playerId: PlayerId) {
   requireCurrentTurn(snapshot, playerId);
 
@@ -774,10 +798,8 @@ export function claimOutOfTurnDiscardTransition(
   commitPendingTurnDiscard(nextSnapshot);
   nextSnapshot.engineState.pendingOutOfTurnClaim = null;
   nextSnapshot.publicState.turnPhase = 'completed';
-  syncLoadedClaimEligibility(nextSnapshot);
-  refreshCounts(nextSnapshot);
 
-  return nextSnapshot;
+  return advanceToNextTurnMutable(nextSnapshot);
 }
 
 export function rejectOutOfTurnDiscardTransition(
@@ -834,6 +856,10 @@ export function rejectOutOfTurnDiscardTransition(
   nextSnapshot.publicState.turnPhase = everyEligiblePlayerDeclined
     ? 'completed'
     : 'awaiting-out-of-turn-claim';
+  if (everyEligiblePlayerDeclined) {
+    return advanceToNextTurnMutable(nextSnapshot);
+  }
+
   syncLoadedClaimEligibility(nextSnapshot);
   refreshCounts(nextSnapshot);
 
@@ -860,26 +886,7 @@ export function advanceTurnTransition(
     throw new AppError('invalid-room-state', 'Todavía no corresponde avanzar el turno.');
   }
 
-  if (nextSnapshot.publicState.winnerOfRound) {
-    return nextSnapshot;
-  }
-
-  const nextPlayerId = getNextPlayerId(
-    nextSnapshot.publicState.orderedPlayerIds,
-    nextSnapshot.publicState.currentTurnPlayerId,
-  );
-  nextSnapshot.publicState.currentTurnPlayerId = nextPlayerId;
-  nextSnapshot.publicState.turnPhase = 'awaiting-draw';
-  nextSnapshot.publicState.turnNumber += 1;
-  nextSnapshot.engineState.turnNumber = nextSnapshot.publicState.turnNumber;
-  nextSnapshot.engineState.lastDrawSource = null;
-  nextSnapshot.engineState.pendingOutOfTurnClaim = null;
-  nextSnapshot.engineState.pendingTurnDiscard = null;
-  nextSnapshot.engineState.currentTurnWentDownPlayerId = null;
-  syncLoadedClaimEligibility(nextSnapshot);
-  refreshCounts(nextSnapshot);
-
-  return nextSnapshot;
+  return advanceToNextTurnMutable(nextSnapshot);
 }
 
 export function finishRoundIfPlayerIsEmptyTransition(
