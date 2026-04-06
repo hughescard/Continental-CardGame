@@ -99,9 +99,10 @@ describe('discard flow', () => {
     const afterDiscard = discardCardTransition(afterDraw, player1, cardToDiscard.id);
 
     expect(afterDiscard.publicState.pendingOutOfTurnClaim).toBeNull();
-    expect(afterDiscard.publicState.turnPhase).toBe('completed');
+    expect(afterDiscard.publicState.turnPhase).toBe('awaiting-draw');
     expect(afterDiscard.publicState.discardTop?.id).toBe(cardToDiscard.id);
     expect(afterDiscard.engineState.pendingTurnDiscard).toBeNull();
+    expect(afterDiscard.publicState.currentTurnPlayerId).toBe(player2);
   });
 });
 
