@@ -5,11 +5,17 @@ import { describeCardDetail, getSuitMeta } from '@/features/game/lib/formatters'
 
 interface GameHandCardProps {
   card: CardInstance;
+  highlighted?: boolean;
   selected: boolean;
   onClick: () => void;
 }
 
-function GameHandCardComponent({ card, selected, onClick }: GameHandCardProps) {
+function GameHandCardComponent({
+  card,
+  highlighted = false,
+  selected,
+  onClick,
+}: GameHandCardProps) {
   const suitMeta = getSuitMeta(card.suit);
   const jokerSymbol = '🃏';
   const displayRank = card.rank === 'JOKER' ? '' : card.rank;
@@ -27,6 +33,8 @@ function GameHandCardComponent({ card, selected, onClick }: GameHandCardProps) {
         'relative min-h-[7.2rem] min-w-[4.6rem] snap-start overflow-hidden rounded-[1.25rem] border bg-[#fcfaf6] px-2 py-2 text-left transition-all active:scale-[0.98] md:min-w-[5rem]',
         selected
           ? 'z-10 scale-[1.02] border-brand shadow-[0_0_0_2px_rgba(25,183,164,0.25),0_12px_28px_-14px_rgba(25,183,164,0.65)]'
+          : highlighted
+            ? 'border-rose-500 shadow-[0_0_0_2px_rgba(244,63,94,0.18),0_10px_24px_-16px_rgba(244,63,94,0.55)]'
           : 'border-slate-300/90 shadow-panel hover:border-gold/45',
       )}
       onClick={onClick}
@@ -39,6 +47,9 @@ function GameHandCardComponent({ card, selected, onClick }: GameHandCardProps) {
           selected ? 'border-brand/60' : 'border-slate-300/80',
         )}
       />
+      {highlighted && !selected ? (
+        <span className="pointer-events-none absolute inset-[3px] rounded-[1.05rem] border border-rose-400/70" />
+      ) : null}
       {selected ? (
         <>
           <span className="pointer-events-none absolute inset-0 rounded-[1.25rem] bg-[linear-gradient(180deg,rgba(25,183,164,0.08),transparent_32%,transparent_70%,rgba(25,183,164,0.12))]" />

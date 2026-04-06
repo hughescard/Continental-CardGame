@@ -70,8 +70,7 @@ export function GamePage() {
     'draw-deck': () => void game.drawFromDeck(),
     'draw-discard': () => void game.drawFromDiscard(),
     discard: () => void game.discardSelectedCard(),
-    'draft-trio': () => game.addDraftMeld('trio'),
-    'draft-straight': () => game.addDraftMeld('straight'),
+    'draft-meld': () => game.addDraftMeld(),
     'initial-down': () => void game.submitInitialDown(),
     'add-to-meld': () => void game.addSelectedCardsToMeld(),
     'claim-out-of-turn': () => void game.claimOutOfTurnDiscard(),
@@ -97,10 +96,7 @@ export function GamePage() {
     () =>
       game.initialDownDraft.map((meld, index) => ({
         id: meld.id,
-        label:
-          meld.type === 'trio'
-            ? `Trío preparado ${index + 1}`
-            : `Escalera preparada ${index + 1}`,
+        label: `Borrador ${index + 1}`,
         cards: meld.cardIds
           .map((cardId) => handCardMap.get(cardId))
           .filter((card): card is CardInstance => card !== undefined),
@@ -446,12 +442,8 @@ export function GamePage() {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-gold/80">
-                  Mesa compartida
+                  Mesa
                 </p>
-                <h2 className="mt-1 text-lg font-bold text-ink">La partida está sobre la mesa</h2>
-              </div>
-              <div className="rounded-full border border-line/70 bg-white/[0.05] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted">
-                Turno de {game.currentTurnPlayerName}
               </div>
             </div>
 
@@ -533,9 +525,6 @@ export function GamePage() {
                         Combinaciones bajadas
                       </p>
                     </div>
-                    <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-200/80">
-                      {game.publicState.publicTableMelds.length}
-                    </span>
                   </div>
 
                   <div className="mt-3 grid gap-3">
@@ -552,7 +541,7 @@ export function GamePage() {
                                     game.publicState?.playersWhoAreDown[0] ?? '',
                                     playersList,
                                   )
-                              : 'Mesa compartida'
+                              : 'Mesa'
                           }
                           onClick={() =>
                             game.setSelectedTableMeldId(
@@ -576,7 +565,7 @@ export function GamePage() {
               <div className="mt-4 grid gap-3">
                 <details className="rounded-[1.25rem] border border-line/70 bg-black/12 px-3.5 py-3">
                   <summary className="cursor-pointer list-none text-sm font-semibold text-ink">
-                    Bajada inicial
+                    Borradores
                   </summary>
                   <div className="mt-3 grid gap-2.5">
                     {draftPreview.length ? (
@@ -609,7 +598,7 @@ export function GamePage() {
                       ))
                     ) : (
                       <div className="rounded-[1.1rem] border border-line/70 bg-white/[0.05] px-3 py-3 text-sm text-muted">
-                        Aquí verás tus combinaciones preparadas.
+                        Aquí verás los borradores que vayas armando.
                       </div>
                     )}
                   </div>
@@ -790,6 +779,7 @@ export function GamePage() {
                     <GameHandCard
                       key={card.id}
                       card={card}
+                      highlighted={game.lastDrawnCardId === card.id}
                       onClick={() => game.toggleCard(card.id)}
                       selected={game.selectedCardIds.includes(card.id)}
                     />
