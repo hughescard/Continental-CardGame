@@ -29,6 +29,8 @@ export interface DraftMeld {
   cardIds: string[];
 }
 
+export type DraftMeldKind = 'trio' | 'straight' | 'both' | 'invalid';
+
 export type HandSortMode = 'rank' | 'suit';
 
 export type GameActionKey =
@@ -66,6 +68,13 @@ export interface TableParticipant {
   hasGoneDown: boolean;
   isClaimPriority: boolean;
   isSelf: boolean;
+}
+
+export interface ScoreboardEntry {
+  playerId: string;
+  displayName: string;
+  totalPoints: number;
+  rank: number;
 }
 
 function buildActionDescriptors(input: {
@@ -364,6 +373,25 @@ function inferInitialDownMelds(input: {
   throw new Error('Los borradores no cumplen exactamente el requisito de esta ronda.');
 }
 
+function inferDraftKind(cards: readonly CardInstance[]): DraftMeldKind {
+  const isTrio = validateTrio(cards).isValid;
+  const isStraight = validateStraight(cards).isValid;
+
+  if (isTrio && isStraight) {
+    return 'both';
+  }
+
+  if (isTrio) {
+    return 'trio';
+  }
+
+  if (isStraight) {
+    return 'straight';
+  }
+
+  return 'invalid';
+}
+
 export function useRealtimeGame(roomId: string) {
   const { session, ensureAnonymousSession, isLoading: isAuthLoading } = useAuthSession();
   const [publicState, setPublicState] = useState<PublicGameState | null>(null);
@@ -371,6 +399,8 @@ export function useRealtimeGame(roomId: string) {
   const [room, setRoom] = useState<LobbyRoom | null>(null);
   const [players, setPlayers] = useState<LobbyPlayer[]>([]);
   const [roundResult, setRoundResult] = useState<RoundResultSummary | null>(null);
+  const [latestCompletedRoundResult, setLatestCompletedRoundResult] =
+    useState<RoundResultSummary | null>(null);
   const [gameSummary, setGameSummary] = useState<GameSummary | null>(null);
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
   const [selectedTableMeldId, setSelectedTableMeldId] = useState<string | null>(null);
@@ -472,6 +502,34 @@ export function useRealtimeGame(roomId: string) {
       unsubscribe();
     };
   }, [publicState?.roundIndex, roomId]);
+
+  useEffect(() => {
+    if (!publicState) {
+      setLatestCompletedRoundResult(null);
+      return;
+    }
+
+    const targetRoundIndex =
+      publicState.phase === 'playing'
+        ? publicState.roundIndex - 1
+        : publicState.roundIndex;
+
+    if (targetRoundIndex < 1) {
+      setLatestCompletedRoundResult(null);
+      return;
+    }
+
+    const unsubscribe = appServices.subscribeToRoundResult(
+      roomId,
+      targetRoundIndex,
+      setLatestCompletedRoundResult,
+      (nextError) => setError(getErrorMessage(nextError)),
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [publicState?.phase, publicState?.roundIndex, roomId]);
 
   useEffect(() => {
     if (!publicState?.gameId) {
@@ -660,6 +718,28 @@ export function useRealtimeGame(roomId: string) {
       : sortCardsByRank(privateState.hand);
   }, [handSortMode, privateState?.hand]);
 
+  const handById = useMemo(
+    () =>
+      new Map(
+        (privateState?.hand ?? []).map((card) => [card.id, card] as const),
+      ),
+    [privateState?.hand],
+  );
+
+  const draftKindById = useMemo(
+    () =>
+      Object.fromEntries(
+        initialDownDraft.map((draft) => {
+          const cards = draft.cardIds
+            .map((cardId) => handById.get(cardId))
+            .filter((card): card is CardInstance => card !== undefined);
+
+          return [draft.id, inferDraftKind(cards)] as const;
+        }),
+      ) as Record<string, DraftMeldKind>,
+    [handById, initialDownDraft],
+  );
+
   const playerNameMap = useMemo(
     () => Object.fromEntries(players.map((player) => [player.id, player.displayName])),
     [players],
@@ -686,6 +766,42 @@ export function useRealtimeGame(roomId: string) {
       };
     });
   }, [currentOutOfTurnPriorityPlayerId, players, publicState, session.userId]);
+
+  const scoreboardEntries = useMemo<ScoreboardEntry[]>(() => {
+    if (gameSummary) {
+      return gameSummary.standings.map((standing) => ({
+        playerId: standing.playerId,
+        displayName: standing.displayName,
+        totalPoints: standing.totalPoints,
+        rank: standing.rank,
+      }));
+    }
+
+    const sourceEntries =
+      roundResult?.entries ??
+      latestCompletedRoundResult?.entries ??
+      publicState?.orderedPlayerIds.map((playerId) => ({
+        playerId,
+        displayName: getPlayerName(playerId, players, session.userId),
+        totalPointsAfterRound: 0,
+      }));
+
+    if (!sourceEntries) {
+      return [];
+    }
+
+    return [...sourceEntries]
+      .map((entry) => ({
+        playerId: entry.playerId,
+        displayName: entry.displayName,
+        totalPoints: entry.totalPointsAfterRound,
+      }))
+      .sort((left, right) => left.totalPoints - right.totalPoints)
+      .map((entry, index) => ({
+        ...entry,
+        rank: index + 1,
+      }));
+  }, [gameSummary, latestCompletedRoundResult?.entries, players, publicState?.orderedPlayerIds, roundResult?.entries, session.userId]);
 
   const currentTurnPlayerName = publicState
     ? getPlayerName(publicState.currentTurnPlayerId, players, session.userId)
@@ -819,6 +935,7 @@ export function useRealtimeGame(roomId: string) {
     room,
     players,
     tableParticipants,
+    scoreboardEntries,
     playerNameMap,
     publicState,
     privateState,
@@ -834,6 +951,7 @@ export function useRealtimeGame(roomId: string) {
     sortedHand,
     handSortMode,
     lastDrawnCardId,
+    draftKindById,
     selectedCardIds,
     selectedTableMeldId,
     initialDownDraft,
