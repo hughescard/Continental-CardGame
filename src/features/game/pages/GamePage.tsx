@@ -101,9 +101,7 @@ export function GamePage() {
             ? 'Borrador de trío'
             : game.draftKindById[meld.id] === 'straight'
               ? 'Borrador de escalera'
-              : game.draftKindById[meld.id] === 'both'
-                ? 'Borrador válido'
-                : `Borrador ${index + 1}`,
+              : `Borrador ${index + 1}`,
         cards: meld.cardIds
           .map((cardId) => handCardMap.get(cardId))
           .filter((card): card is CardInstance => card !== undefined),
