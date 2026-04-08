@@ -410,6 +410,7 @@ export function useRealtimeGame(roomId: string) {
   const [error, setError] = useState<string | null>(null);
   const previousRoundKeyRef = useRef<string | null>(null);
   const previousHandIdsRef = useRef<string[]>([]);
+  const previousHasGoneDownRef = useRef(false);
 
   useEffect(() => {
     if (isAuthLoading || session.userId) {
@@ -527,6 +528,17 @@ export function useRealtimeGame(roomId: string) {
       unsubscribe();
     };
   }, [publicState?.phase, publicState?.roundIndex, roomId]);
+
+  useEffect(() => {
+    const hasGoneDown = !!privateState?.hasGoneDown;
+
+    if (hasGoneDown && !previousHasGoneDownRef.current) {
+      setInitialDownDraft([]);
+      setSelectedCardIds([]);
+    }
+
+    previousHasGoneDownRef.current = hasGoneDown;
+  }, [privateState?.hasGoneDown]);
 
   useEffect(() => {
     if (!publicState?.gameId) {

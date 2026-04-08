@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createDoubleDeck } from '@/domain';
 import { asPlayerId } from '@/domain/types/players';
 import {
+  addCardsToExistingMeldTransition,
   advanceTurnTransition,
   buildInitialRoundSnapshot,
   claimOutOfTurnDiscardTransition,
@@ -264,5 +265,112 @@ describe('finishRoundIfPlayerIsEmpty', () => {
     expect(() => drawFromDeckTransition(closedSnapshot, player1)).toThrowError(
       'La ronda ya está terminada y no acepta más acciones de juego.',
     );
+  });
+});
+
+describe('addCardsToExistingMeld', () => {
+  it('accepts adding a matching natural card to an existing trio', () => {
+    const snapshot = createRoundOneSnapshot();
+    const playerState = snapshot.privateStates[player1];
+
+    if (!playerState) {
+      throw new Error('Missing private state for player 1.');
+    }
+
+    const cardToAdd = playerState.hand[0];
+
+    if (!cardToAdd) {
+      throw new Error('Missing card to add.');
+    }
+
+    cardToAdd.rank = '7';
+    cardToAdd.suit = 'hearts';
+
+    snapshot.publicState.turnPhase = 'awaiting-melds';
+    snapshot.publicState.publicTableMelds = [
+      {
+        id: 'meld-trio',
+        type: 'trio',
+        ownerPlayerId: player2,
+        cards: [
+          { id: '7-clubs', rank: '7', suit: 'clubs', deckNumber: 1 },
+          { id: '7-diamonds', rank: '7', suit: 'diamonds', deckNumber: 1 },
+          { id: '7-spades', rank: '7', suit: 'spades', deckNumber: 1 },
+        ],
+      },
+    ];
+    snapshot.publicState.playersWhoAreDown = [player1, player2];
+    const preparedSnapshot = {
+      ...snapshot,
+      privateStates: {
+        ...snapshot.privateStates,
+        [player1]: {
+          ...playerState,
+          hasGoneDown: true,
+        },
+      },
+    };
+
+    const nextSnapshot = addCardsToExistingMeldTransition(preparedSnapshot, {
+      playerId: player1,
+      meldId: 'meld-trio',
+      cardIds: [cardToAdd.id],
+    });
+
+    expect(nextSnapshot.publicState.publicTableMelds[0]?.cards).toHaveLength(4);
+    expect(nextSnapshot.privateStates[player1]?.hand).toHaveLength(playerState.hand.length - 1);
+  });
+
+  it('accepts extending an existing straight with a natural card at the end', () => {
+    const snapshot = createRoundOneSnapshot();
+    const playerState = snapshot.privateStates[player1];
+
+    if (!playerState) {
+      throw new Error('Missing private state for player 1.');
+    }
+
+    const cardToAdd = playerState.hand[0];
+
+    if (!cardToAdd) {
+      throw new Error('Missing card to add.');
+    }
+
+    cardToAdd.rank = '8';
+    cardToAdd.suit = 'clubs';
+
+    snapshot.publicState.turnPhase = 'awaiting-melds';
+    snapshot.publicState.publicTableMelds = [
+      {
+        id: 'meld-straight',
+        type: 'straight',
+        ownerPlayerId: player2,
+        cards: [
+          { id: '4-clubs', rank: '4', suit: 'clubs', deckNumber: 1 },
+          { id: '5-clubs', rank: '5', suit: 'clubs', deckNumber: 1 },
+          { id: '6-clubs', rank: '6', suit: 'clubs', deckNumber: 1 },
+          { id: '7-clubs', rank: '7', suit: 'clubs', deckNumber: 1 },
+        ],
+      },
+    ];
+    snapshot.publicState.playersWhoAreDown = [player1, player2];
+    const preparedSnapshot = {
+      ...snapshot,
+      privateStates: {
+        ...snapshot.privateStates,
+        [player1]: {
+          ...playerState,
+          hasGoneDown: true,
+        },
+      },
+    };
+
+    const nextSnapshot = addCardsToExistingMeldTransition(preparedSnapshot, {
+      playerId: player1,
+      meldId: 'meld-straight',
+      cardIds: [cardToAdd.id],
+    });
+
+    expect(nextSnapshot.publicState.publicTableMelds[0]?.cards).toHaveLength(5);
+    expect(nextSnapshot.privateStates[player1]?.hand).toHaveLength(playerState.hand.length - 1);
   });
 });
