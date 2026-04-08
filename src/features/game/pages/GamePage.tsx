@@ -75,7 +75,6 @@ export function GamePage() {
     'add-to-meld': () => void game.addSelectedCardsToMeld(),
     'claim-out-of-turn': () => void game.claimOutOfTurnDiscard(),
     'reject-out-of-turn': () => void game.rejectOutOfTurnDiscard(),
-    'advance-turn': () => void game.advanceTurn(),
   };
 
   const currentPlayerCardCount = game.privateState?.hand.length ?? 0;

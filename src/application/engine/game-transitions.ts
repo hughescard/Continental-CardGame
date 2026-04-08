@@ -789,8 +789,8 @@ export function discardCardTransition(
 
   if (
     afterFinishCheck.publicState.phase === 'playing' &&
-    afterFinishCheck.engineState.lastDrawSource === 'discard' &&
-    !afterFinishCheck.engineState.pendingOutOfTurnClaim
+    !afterFinishCheck.engineState.pendingOutOfTurnClaim &&
+    afterFinishCheck.publicState.turnPhase === 'completed'
   ) {
     return advanceToNextTurnMutable(afterFinishCheck);
   }

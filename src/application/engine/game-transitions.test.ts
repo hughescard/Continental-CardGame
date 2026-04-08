@@ -134,6 +134,44 @@ describe('discard flow', () => {
     expect(afterDiscard.engineState.pendingTurnDiscard).toBeNull();
     expect(afterDiscard.publicState.currentTurnPlayerId).toBe(player2);
   });
+
+  it('advances turn automatically after drawing from deck when nobody is eligible to claim', () => {
+    const snapshot = createRoundOneSnapshot();
+    const playerTwoState = snapshot.privateStates[player2];
+
+    if (!playerTwoState) {
+      throw new Error('Missing private state for player 2.');
+    }
+
+    const preparedSnapshot = {
+      ...snapshot,
+      publicState: {
+        ...snapshot.publicState,
+        playersWhoAreDown: [player2],
+      },
+      privateStates: {
+        ...snapshot.privateStates,
+        [player2]: {
+          ...playerTwoState,
+          hasGoneDown: true,
+        },
+      },
+    };
+
+    const afterDraw = drawFromDeckTransition(preparedSnapshot, player1);
+    const cardToDiscard = afterDraw.privateStates[player1]?.hand[0];
+
+    if (!cardToDiscard) {
+      throw new Error('Missing card to discard.');
+    }
+
+    const afterDiscard = discardCardTransition(afterDraw, player1, cardToDiscard.id);
+
+    expect(afterDiscard.publicState.pendingOutOfTurnClaim).toBeNull();
+    expect(afterDiscard.publicState.turnPhase).toBe('awaiting-draw');
+    expect(afterDiscard.publicState.currentTurnPlayerId).toBe(player2);
+    expect(afterDiscard.publicState.discardTop?.id).toBe(cardToDiscard.id);
+  });
 });
 
 describe('claimOutOfTurnDiscard', () => {
