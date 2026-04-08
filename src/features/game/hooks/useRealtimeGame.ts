@@ -41,8 +41,7 @@ export type GameActionKey =
   | 'initial-down'
   | 'add-to-meld'
   | 'claim-out-of-turn'
-  | 'reject-out-of-turn'
-  | 'advance-turn';
+  | 'reject-out-of-turn';
 
 export interface GameActionDescriptor {
   key: GameActionKey;
@@ -89,7 +88,6 @@ function buildActionDescriptors(input: {
   hasDiscardTop: boolean;
   canClaimOutOfTurn: boolean;
   canRejectOutOfTurn: boolean;
-  canAdvanceTurn: boolean;
 }) {
   const drawStateVisible = input.isRoundOpen && input.isCurrentPlayerTurn && input.turnPhase === 'awaiting-draw';
   const meldStateVisible =
@@ -175,14 +173,6 @@ function buildActionDescriptors(input: {
       description: 'Cede la prioridad para que decida el siguiente jugador elegible.',
       visible: claimStateVisible && input.canRejectOutOfTurn,
       enabled: input.canRejectOutOfTurn,
-    },
-    {
-      key: 'advance-turn',
-      label: 'Avanzar turno',
-      description: 'Pasa el control al siguiente jugador.',
-      visible: input.isRoundOpen && input.isCurrentPlayerTurn && input.turnPhase === 'completed',
-      enabled: input.canAdvanceTurn,
-      tone: 'brand',
     },
   ];
 
@@ -274,13 +264,6 @@ function buildStatusNotice(input: {
       } satisfies GameStatusNotice;
     }
 
-    if (publicState.turnPhase === 'completed') {
-      return {
-        title: 'Turno listo',
-        description: 'Si no hay reclamos pendientes, puedes pasar al siguiente jugador.',
-        tone: 'success',
-      } satisfies GameStatusNotice;
-    }
   }
 
   return {
@@ -701,8 +684,6 @@ export function useRealtimeGame(roomId: string) {
     publicState?.turnPhase === 'awaiting-out-of-turn-claim' &&
     currentOutOfTurnPriorityPlayerId === session.userId &&
     !privateState?.hasGoneDown;
-  const canAdvanceTurn =
-    isRoundOpen && isCurrentPlayerTurn && publicState?.turnPhase === 'completed';
   const canStartNextRoundAction =
     isHost &&
     publicState !== null &&
@@ -857,10 +838,8 @@ export function useRealtimeGame(roomId: string) {
         hasDiscardTop: !!publicState?.discardTop,
         canClaimOutOfTurn: !!canClaimOutOfTurn,
         canRejectOutOfTurn: !!canRejectOutOfTurn,
-        canAdvanceTurn: !!canAdvanceTurn,
       }),
     [
-      canAdvanceTurn,
       canClaimOutOfTurn,
       canDrawFromDiscard,
       canRejectOutOfTurn,
@@ -987,7 +966,6 @@ export function useRealtimeGame(roomId: string) {
     canAddToTable,
     canClaimOutOfTurn,
     canRejectOutOfTurn,
-    canAdvanceTurn,
     canStartNextRound: canStartNextRoundAction,
     canRearrangeTable,
     actionDescriptors,
@@ -1060,10 +1038,6 @@ export function useRealtimeGame(roomId: string) {
     rejectOutOfTurnDiscard: () =>
       runAction(async () => {
         await appServices.rejectOutOfTurnDiscard({ roomId });
-      }),
-    advanceTurn: () =>
-      runAction(async () => {
-        await appServices.advanceTurn({ roomId });
       }),
     startNextRound: async () => {
       setError(null);
