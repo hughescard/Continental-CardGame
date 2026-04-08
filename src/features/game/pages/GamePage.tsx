@@ -112,6 +112,8 @@ export function GamePage() {
   const selfParticipant = game.tableParticipants.find((participant) => participant.isSelf) ?? null;
   const otherParticipants = game.tableParticipants.filter((participant) => !participant.isSelf);
   const pendingClaimCard = game.publicState?.pendingOutOfTurnClaim?.card ?? null;
+  const showDraftPanel = !game.privateState?.hasGoneDown && draftPreview.length > 0;
+  const showRearrangePanel = !!game.rearrangeInput || game.canRearrangeTable;
 
   useEffect(() => {
     setLastVisitedRoomId(roomId);
@@ -598,15 +600,15 @@ export function GamePage() {
               </div>
             </div>
 
-            {(draftPreview.length > 0 || game.rearrangeInput || game.canRearrangeTable) ? (
+            {(showDraftPanel || showRearrangePanel) ? (
               <div className="mt-4 grid gap-3">
-                <details className="rounded-[1.25rem] border border-line/70 bg-black/12 px-3.5 py-3">
-                  <summary className="cursor-pointer list-none text-sm font-semibold text-ink">
-                    Borradores
-                  </summary>
-                  <div className="mt-3 grid gap-2.5">
-                    {draftPreview.length ? (
-                      draftPreview.map((meld) => (
+                {showDraftPanel ? (
+                  <details className="rounded-[1.25rem] border border-line/70 bg-black/12 px-3.5 py-3">
+                    <summary className="cursor-pointer list-none text-sm font-semibold text-ink">
+                      Borradores
+                    </summary>
+                    <div className="mt-3 grid gap-2.5">
+                      {draftPreview.map((meld) => (
                         <div
                           key={meld.id}
                           className="rounded-[1.1rem] border border-line/70 bg-white/[0.05] px-3 py-3"
@@ -632,36 +634,34 @@ export function GamePage() {
                             ))}
                           </div>
                         </div>
-                      ))
-                    ) : (
-                      <div className="rounded-[1.1rem] border border-line/70 bg-white/[0.05] px-3 py-3 text-sm text-muted">
-                        Aquí verás los borradores que vayas armando.
-                      </div>
-                    )}
-                  </div>
-                </details>
+                      ))}
+                    </div>
+                  </details>
+                ) : null}
 
-                <details className="rounded-[1.25rem] border border-line/70 bg-black/12 px-3.5 py-3">
-                  <summary className="cursor-pointer list-none text-sm font-semibold text-ink">
-                    Reorganizar mesa
-                  </summary>
-                  <div className="mt-3 space-y-3">
-                    <textarea
-                      className="min-h-24 w-full rounded-[1rem] border border-line/70 bg-white/[0.05] px-3.5 py-3 text-sm text-ink outline-none placeholder:text-muted focus:border-brand/60"
-                      onChange={(event) => game.setRearrangeInput(event.target.value)}
-                      placeholder="combinacion-1:trio:carta1,carta2,carta3"
-                      value={game.rearrangeInput}
-                    />
-                    <button
-                      className="w-full rounded-[1rem] border border-line/70 bg-white/[0.05] px-4 py-3 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50"
-                      disabled={!game.canRearrangeTable || game.isBusy}
-                      onClick={() => void game.submitRearrangeTable()}
-                      type="button"
-                    >
-                      Aplicar reorganización
-                    </button>
-                  </div>
-                </details>
+                {showRearrangePanel ? (
+                  <details className="rounded-[1.25rem] border border-line/70 bg-black/12 px-3.5 py-3">
+                    <summary className="cursor-pointer list-none text-sm font-semibold text-ink">
+                      Reorganizar mesa
+                    </summary>
+                    <div className="mt-3 space-y-3">
+                      <textarea
+                        className="min-h-24 w-full rounded-[1rem] border border-line/70 bg-white/[0.05] px-3.5 py-3 text-sm text-ink outline-none placeholder:text-muted focus:border-brand/60"
+                        onChange={(event) => game.setRearrangeInput(event.target.value)}
+                        placeholder="combinacion-1:trio:carta1,carta2,carta3"
+                        value={game.rearrangeInput}
+                      />
+                      <button
+                        className="w-full rounded-[1rem] border border-line/70 bg-white/[0.05] px-4 py-3 text-sm font-semibold text-ink disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={!game.canRearrangeTable || game.isBusy}
+                        onClick={() => void game.submitRearrangeTable()}
+                        type="button"
+                      >
+                        Aplicar reorganización
+                      </button>
+                    </div>
+                  </details>
+                ) : null}
               </div>
             ) : null}
           </div>
