@@ -411,6 +411,7 @@ export function useRealtimeGame(roomId: string) {
   const previousRoundKeyRef = useRef<string | null>(null);
   const previousHandIdsRef = useRef<string[]>([]);
   const previousHasGoneDownRef = useRef(false);
+  const draftIdCounterRef = useRef(0);
 
   useEffect(() => {
     if (isAuthLoading || session.userId) {
@@ -582,6 +583,7 @@ export function useRealtimeGame(roomId: string) {
 
     if (previousRoundKeyRef.current !== roundKey) {
       previousRoundKeyRef.current = roundKey;
+      draftIdCounterRef.current = 0;
       setSelectedCardIds([]);
       setSelectedTableMeldId(null);
       setInitialDownDraft([]);
@@ -886,10 +888,18 @@ export function useRealtimeGame(roomId: string) {
       return;
     }
 
+    draftIdCounterRef.current += 1;
+    const draftId = [
+      'draft',
+      session.userId ?? 'anon',
+      publicState?.roundIndex ?? 'round',
+      draftIdCounterRef.current,
+    ].join('-');
+
     setInitialDownDraft((current) => [
       ...current,
       {
-        id: `draft-${current.length + 1}`,
+        id: draftId,
         cardIds: selectedCardIds,
       },
     ]);

@@ -172,6 +172,29 @@ function toTableMeld(
   };
 }
 
+function buildUniquePublicMeldId(
+  ownerPlayerId: PlayerId,
+  requestedId: string,
+  usedIds: Set<string>,
+): string {
+  const baseId = `${ownerPlayerId}-${requestedId}`;
+
+  if (!usedIds.has(baseId)) {
+    usedIds.add(baseId);
+    return baseId;
+  }
+
+  let suffix = 2;
+
+  while (usedIds.has(`${baseId}-${suffix}`)) {
+    suffix += 1;
+  }
+
+  const uniqueId = `${baseId}-${suffix}`;
+  usedIds.add(uniqueId);
+  return uniqueId;
+}
+
 function tableMeldToDomain(meld: PublicTableMeld): TableMeld {
   return {
     type: meld.type,
@@ -504,8 +527,11 @@ export function drawFromDiscardTransition(
 function buildMeldsFromCardIds(
   state: PrivatePlayerGameState,
   ownerPlayerId: PlayerId,
+  existingMeldIds: ReadonlySet<string>,
   melds: readonly { id: string; type: PublicTableMeld['type']; cardIds: readonly string[] }[],
 ): PublicTableMeld[] {
+  const usedIds = new Set(existingMeldIds);
+
   return melds.map((meld) => {
     const cards = meld.cardIds.map((cardId) => {
       const card = state.hand.find((item) => item.id === cardId);
@@ -517,7 +543,12 @@ function buildMeldsFromCardIds(
       return cloneCard(card);
     });
 
-    return toTableMeld(meld.id, meld.type, ownerPlayerId, cards);
+    return toTableMeld(
+      buildUniquePublicMeldId(ownerPlayerId, meld.id, usedIds),
+      meld.type,
+      ownerPlayerId,
+      cards,
+    );
   });
 }
 
@@ -535,7 +566,12 @@ export function attemptInitialMeldDownTransition(
     throw new AppError('invalid-room-state', 'Ese jugador ya se bajó en esta ronda.');
   }
 
-  const nextMelds = buildMeldsFromCardIds(playerState, input.playerId, input.melds);
+  const nextMelds = buildMeldsFromCardIds(
+    playerState,
+    input.playerId,
+    new Set(nextSnapshot.publicState.publicTableMelds.map((meld) => meld.id)),
+    input.melds,
+  );
   const validation = validateRoundMeldSet(
     nextMelds.map(tableMeldToDomain),
     nextSnapshot.publicState.roundIndex,
